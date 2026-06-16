@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OTP Verification</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f0f4ff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    h1 { font-size: 22px; color: #1e3a8a; margin-bottom: 6px; }
+    .subtitle { color: #6b7280; font-size: 14px; margin-bottom: 28px; }
+
+    label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+
+    input[type="email"],
+    input[type="text"] {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid #d1d5db;
+      border-radius: 7px;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus { border-color: #3b82f6; }
+
+    .otp-inputs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .otp-inputs input {
+      width: 46px;
+      height: 52px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: bold;
+      border: 1.5px solid #d1d5db;
+      border-radius: 7px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .otp-inputs input:focus { border-color: #3b82f6; }
+
+    .btn {
+      width: 100%;
+      padding: 11px;
+      border: none;
+      border-radius: 7px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+      margin-top: 4px;
+    }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-secondary { background: #f3f4f6; color: #374151; margin-top: 10px; }
+    .btn-secondary:hover { background: #e5e7eb; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .message {
+      margin-top: 16px;
+      padding: 10px 14px;
+      border-radius: 7px;
+      font-size: 14px;
+      display: none;
+    }
+    .message.success { background: #ecfdf5; color: #065f46; border: 1px solid #6ee7b7; }
+    .message.error   { background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5; }
+
+    .step { display: none; }
+    .step.active { display: block; }
+
+    .resend-row {
+      text-align: center;
+      margin-top: 14px;
+      font-size: 13px;
+      color: #6b7280;
+    }
+    .resend-row button {
+      background: none;
+      border: none;
+      color: #2563eb;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 0;
+    }
+    .resend-row button:disabled { color: #9ca3af; cursor: default; }
+
+    .success-icon {
+      text-align: center;
+      font-size: 54px;
+      margin-bottom: 12px;
+    }
+    .input-row { margin-bottom: 18px; }
+  </style>
+</head>
+<body>
+<div class="card">
+
+  <!-- Step 1: Enter Email -->
+  <div class="step active" id="step-email">
+    <h1>Verify your email</h1>
+    <p class="subtitle">Enter your email address to receive a one-time passcode.</p>
+    <div class="input-row">
+      <label for="email">Email address</label>
+      <input type="email" id="email" placeholder="you@example.com" autocomplete="email" />
+    </div>
+    <button class="btn btn-primary" id="send-btn" onclick="sendOtp()">Send OTP</button>
+    <div class="message" id="email-msg"></div>
+  </div>
+
+  <!-- Step 2: Enter OTP -->
+  <div class="step" id="step-otp">
+    <h1>Enter your code</h1>
+    <p class="subtitle" id="otp-subtitle">We sent a 6-digit code to your email.</p>
+    <div class="otp-inputs" id="otp-boxes"></div>
+    <button class="btn btn-primary" onclick="verifyOtp()">Verify</button>
+    <button class="btn btn-secondary" onclick="goBack()">← Change email</button>
+    <div class="resend-row">
+      Didn't receive it?
+      <button id="resend-btn" onclick="resendOtp()">Resend OTP</button>
+    </div>
+    <div class="message" id="otp-msg"></div>
+  </div>
+
+  <!-- Step 3: Success -->
+  <div class="step" id="step-success">
+    <div class="success-icon">✅</div>
+    <h1 style="text-align:center">Verified!</h1>
+    <p class="subtitle" style="text-align:center;margin-top:8px">Your email has been successfully verified.</p>
+    <button class="btn btn-primary" style="margin-top:24px" onclick="restart()">Start over</button>
+  </div>
+
+</div>
+
+<script>
+  let currentEmail = '';
+  const OTP_LENGTH = 6;
+
+  // Build OTP input boxes
+  const container = document.getElementById('otp-boxes');
+  for (let i = 0; i < OTP_LENGTH; i++) {
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.maxLength = 1;
+    inp.inputMode = 'numeric';
+    inp.pattern = '[0-9]';
+    inp.addEventListener('input', e => {
+      e.target.value = e.target.value.replace(/\D/g, '');
+      if (e.target.value && i < OTP_LENGTH - 1) container.children[i + 1].focus();
+    });
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !e.target.value && i > 0) container.children[i - 1].focus();
+    });
+    container.appendChild(inp);
+  }
+
+  function getOtpValue() {
+    return Array.from(container.children).map(i => i.value).join('');
+  }
+
+  function clearOtpBoxes() {
+    Array.from(container.children).forEach(i => i.value = '');
+    container.children[0].focus();
+  }
+
+  function showStep(id) {
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function showMsg(id, text, type) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = `message ${type}`;
+    el.style.display = 'block';
+  }
+
+  function hideMsg(id) {
+    document.getElementById(id).style.display = 'none';
+  }
+
+  async function sendOtp() {
+    const email = document.getElementById('email').value.trim();
+    if (!email) return showMsg('email-msg', 'Please enter an email address.', 'error');
+    hideMsg('email-msg');
+    const btn = document.getElementById('send-btn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const res = await fetch('/api/otp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        currentEmail = email;
+        document.getElementById('otp-subtitle').textContent = `We sent a 6-digit code to ${email}`;
+        showStep('step-otp');
+        clearOtpBoxes();
+      } else {
+        showMsg('email-msg', data.message, 'error');
+      }
+    } catch {
+      showMsg('email-msg', 'Network error. Please try again.', 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Send OTP';
+    }
+  }
+
+  async function verifyOtp() {
+    const otp = getOtpValue();
+    if (otp.length < OTP_LENGTH) return showMsg('otp-msg', 'Please enter the full 6-digit code.', 'error');
+    hideMsg('otp-msg');
+    try {
+      const res = await fetch('/api/otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: currentEmail, otp }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showStep('step-success');
+      } else {
+        showMsg('otp-msg', data.message, 'error');
+        if (res.status === 429 || res.status === 410) clearOtpBoxes();
+      }
+    } catch {
+      showMsg('otp-msg', 'Network error. Please try again.', 'error');
+    }
+  }
+
+  async function resendOtp() {
+    const btn = document.getElementById('resend-btn');
+    btn.disabled = true;
+    hideMsg('otp-msg');
+    try {
+      const res = await fetch('/api/otp/resend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: currentEmail }),
+      });
+      const data = await res.json();
+      showMsg('otp-msg', data.message, data.success ? 'success' : 'error');
+      clearOtpBoxes();
+    } catch {
+      showMsg('otp-msg', 'Failed to resend. Try again.', 'error');
+    } finally {
+      setTimeout(() => btn.disabled = false, 30000); // 30s cooldown
+    }
+  }
+
+  function goBack() {
+    hideMsg('otp-msg');
+    showStep('step-email');
+  }
+
+  function restart() {
+    document.getElementById('email').value = '';
+    currentEmail = '';
+    clearOtpBoxes();
+    hideMsg('email-msg');
+    showStep('step-email');
+  }
+</script>
+</body>
+</html>
